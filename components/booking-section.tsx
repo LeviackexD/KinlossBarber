@@ -193,6 +193,17 @@ export function BookingSection() {
 
   const handleStepChange = (newStep: BookingStep) => {
     setStep(newStep)
+    
+    // Scroll to top of booking section on mobile when changing steps
+    if (typeof window !== 'undefined' && window.innerWidth < 768) {
+      const bookingElement = document.getElementById("booking")
+      if (bookingElement) {
+        // Small delay to let the step content render first
+        setTimeout(() => {
+          bookingElement.scrollIntoView({ behavior: "smooth", block: "start" })
+        }, 50)
+      }
+    }
   }
 
   const handleConfirm = () => {

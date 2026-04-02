@@ -4,15 +4,32 @@ import { useState, useEffect } from "react"
 
 export function FloatingBookButton() {
   const [isVisible, setIsVisible] = useState(false)
+  const [isInBookingSection, setIsInBookingSection] = useState(false)
 
   useEffect(() => {
     const handleScroll = () => {
       // Show after scrolling past hero section (approx 80vh)
       const heroHeight = window.innerHeight * 0.8
-      setIsVisible(window.scrollY > heroHeight)
+      const scrollY = window.scrollY
+      
+      setIsVisible(scrollY > heroHeight)
+      
+      // Check if we're in the booking section
+      const bookingElement = document.getElementById("booking")
+      const galleryElement = document.getElementById("gallery")
+      if (bookingElement && galleryElement) {
+        const bookingTop = bookingElement.offsetTop
+        const galleryTop = galleryElement.offsetTop
+        const viewportMiddle = scrollY + window.innerHeight / 2
+        
+        // Hide when in booking section, show again after gallery
+        setIsInBookingSection(viewportMiddle >= bookingTop && viewportMiddle < galleryTop)
+      }
     }
 
     window.addEventListener("scroll", handleScroll, { passive: true })
+    handleScroll() // Initial check
+    
     return () => window.removeEventListener("scroll", handleScroll)
   }, [])
 
@@ -23,7 +40,7 @@ export function FloatingBookButton() {
     }
   }
 
-  if (!isVisible) return null
+  if (!isVisible || isInBookingSection) return null
 
   return (
     <button
