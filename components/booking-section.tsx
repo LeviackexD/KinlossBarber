@@ -279,6 +279,10 @@ export function BookingSection() {
     return contactMethod === "email" ? <Mail className="w-6 h-6" /> : <MessageSquare className="w-6 h-6" />
   }
 
+  const getContactLabel = () => {
+    return contactMethod === "email" ? "Email" : "Phone"
+  }
+
   // Filter available time slots
   const availableTimeSlots = timeSlots.filter(slot => !busySlots.includes(slot))
 
