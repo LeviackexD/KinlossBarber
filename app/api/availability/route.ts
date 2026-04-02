@@ -19,7 +19,7 @@ const getCredentials = () => {
 
 const SCOPES = ['https://www.googleapis.com/auth/calendar.readonly']
 // Use the user's personal calendar ID
-const CALENDAR_ID = process.env.GOOGLE_CALENDAR_ID || 'kinlossbarber@gmail.com'
+const CALENDAR_ID = process.env.GOOGLE_CALENDAR_ID || '7dc5412809da8272d25c321129505e0bafa3bfcdb4cb4c58e6d890b2cc123f66@group.calendar.google.com'
 
 // Business hours
 const BUSINESS_HOURS = {
