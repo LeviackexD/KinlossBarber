@@ -15,16 +15,8 @@ const getCredentials = () => {
 }
 
 const SCOPES = ['https://www.googleapis.com/auth/calendar']
-// Use the service account's own calendar ID (client_email)
-const getCalendarId = () => {
-  // If specific calendar ID is set in env, use that
-  if (process.env.GOOGLE_CALENDAR_ID && process.env.GOOGLE_CALENDAR_ID !== 'primary') {
-    return process.env.GOOGLE_CALENDAR_ID
-  }
-  // Otherwise use the service account's email as calendar ID
-  const credentials = getCredentials()
-  return credentials.client_email
-}
+// Use the user's personal calendar ID
+const CALENDAR_ID = process.env.GOOGLE_CALENDAR_ID || 'kinlossbarber@gmail.com'
 
 export async function POST(request: NextRequest) {
   try {
@@ -38,9 +30,8 @@ export async function POST(request: NextRequest) {
     }
 
     const credentials = getCredentials()
-    const calendarId = getCalendarId()
     
-    console.log('Using calendar ID:', calendarId)
+    console.log('Using calendar ID:', CALENDAR_ID)
     
     const auth = new google.auth.GoogleAuth({
       credentials,
@@ -60,7 +51,7 @@ export async function POST(request: NextRequest) {
     console.log('Creating event:', {
       start: startDateTime.toISOString(),
       end: endDateTime.toISOString(),
-      calendarId
+      calendarId: CALENDAR_ID
     })
 
     // Create event
@@ -78,7 +69,7 @@ export async function POST(request: NextRequest) {
     }
 
     const response = await calendar.events.insert({
-      calendarId: calendarId,
+      calendarId: CALENDAR_ID,
       requestBody: event,
     })
 
@@ -88,7 +79,7 @@ export async function POST(request: NextRequest) {
       success: true,
       eventId: response.data.id,
       eventLink: response.data.htmlLink,
-      calendarId: calendarId,
+      calendarId: CALENDAR_ID,
       message: 'Appointment booked successfully'
     })
 
