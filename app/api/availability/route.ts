@@ -19,8 +19,16 @@ const getCredentials = () => {
 
 const SCOPES = ['https://www.googleapis.com/auth/calendar.readonly']
 
-// Your Google Calendar ID (use 'primary' for your main calendar)
-const CALENDAR_ID = process.env.GOOGLE_CALENDAR_ID || 'primary'
+// Use the service account's own calendar ID (client_email)
+const getCalendarId = () => {
+  // If specific calendar ID is set in env, use that
+  if (process.env.GOOGLE_CALENDAR_ID && process.env.GOOGLE_CALENDAR_ID !== 'primary') {
+    return process.env.GOOGLE_CALENDAR_ID
+  }
+  // Otherwise use the service account's email as calendar ID
+  const credentials = getCredentials()
+  return credentials.client_email
+}
 
 // Business hours
 const BUSINESS_HOURS = {
@@ -44,6 +52,7 @@ export async function GET(request: NextRequest) {
     }
 
     const credentials = getCredentials()
+    const calendarId = getCalendarId()
     
     const auth = new google.auth.GoogleAuth({
       credentials,
@@ -62,7 +71,7 @@ export async function GET(request: NextRequest) {
 
     // Fetch events for the day
     const response = await calendar.events.list({
-      calendarId: CALENDAR_ID,
+      calendarId: calendarId,
       timeMin: startOfDay.toISOString(),
       timeMax: endOfDay.toISOString(),
       singleEvents: true,
