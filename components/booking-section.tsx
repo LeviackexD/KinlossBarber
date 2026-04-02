@@ -1,13 +1,13 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { ChevronLeft, ChevronRight, Check, Users, Calendar, Clock, User, Mail, MessageSquare } from "lucide-react"
+import { ChevronLeft, ChevronRight, Check, Users, Calendar, Clock, User, Mail, MessageSquare, Loader2 } from "lucide-react"
 
 const timeSlots = [
-  "09:00", "09:30", "10:00", "10:30", "11:00", "11:30", "12:00", "14:00", "14:30", "15:00", "15:30", "16:00", "16:30", "17:00"
+  "09:00", "09:30", "10:00", "10:30", "11:00", "11:30", "12:00", "14:00", "14:30", "15:00", "15:30", "16:00", "16:30"
 ]
 
 type BookingStep = "people" | "datetime" | "contact" | "confirm" | "success"
@@ -22,29 +22,16 @@ const MONTHS = [
 function LargeCalendar({
   selected,
   onSelect,
-  disabled,
+  busyDates,
   currentMonth,
   onChangeMonth,
 }: {
   selected: Date | undefined
   onSelect: (date: Date | undefined) => void
-  disabled?: (date: Date) => boolean
+  busyDates: string[]
   currentMonth: Date
   onChangeMonth: (date: Date) => void
 }) {
-  // Generate simulated busy dates
-  const busyDates = (() => {
-    const busy: string[] = []
-    const today = new Date()
-    for (let i = 2; i < 15; i++) {
-      if (Math.random() > 0.6) {
-        const busyDate = new Date(today.getFullYear(), today.getMonth(), today.getDate() + i)
-        busy.push(busyDate.toDateString())
-      }
-    }
-    return busy
-  })()
-
   const getDaysInMonth = (date: Date) => {
     const year = date.getFullYear()
     const month = date.getMonth()
@@ -88,8 +75,7 @@ function LargeCalendar({
   }
 
   const isDisabled = (date: Date) => {
-    if (disabled) return disabled(date)
-    return isBusy(date)
+    return date < new Date() || date.getDay() === 0 || isBusy(date)
   }
 
   const days = getDaysInMonth(currentMonth)
@@ -190,6 +176,39 @@ export function BookingSection() {
   const [contactMethod, setContactMethod] = useState<ContactMethod>(null)
   const [contactValue, setContactValue] = useState<string>("")
   const [currentMonth, setCurrentMonth] = useState(new Date())
+  
+  // Google Calendar integration states
+  const [busyDates, setBusyDates] = useState<string[]>([])
+  const [busySlots, setBusySlots] = useState<string[]>([])
+  const [isLoadingAvailability, setIsLoadingAvailability] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  // Fetch availability when date is selected
+  useEffect(() => {
+    if (!selectedDate) return
+
+    const fetchAvailability = async () => {
+      setIsLoadingAvailability(true)
+      try {
+        const dateStr = selectedDate.toISOString().split('T')[0]
+        const response = await fetch(`/api/availability?date=${dateStr}`)
+        if (response.ok) {
+          const data = await response.json()
+          setBusySlots(data.busySlots || [])
+          // Add to busy dates if fully booked
+          if (data.isFullyBooked) {
+            setBusyDates(prev => [...new Set([...prev, selectedDate.toDateString()])])
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch availability:', error)
+      } finally {
+        setIsLoadingAvailability(false)
+      }
+    }
+
+    fetchAvailability()
+  }, [selectedDate])
 
   const handleStepChange = (newStep: BookingStep) => {
     setStep(newStep)
@@ -206,16 +225,43 @@ export function BookingSection() {
     }
   }
 
-  const handleConfirm = () => {
-    setStep("success")
-    setTimeout(() => {
-      setStep("people")
-      setPeopleCount(1)
-      setSelectedDate(undefined)
-      setSelectedTime(null)
-      setContactMethod(null)
-      setContactValue("")
-    }, 4000)
+  const handleConfirm = async () => {
+    if (!selectedDate || !selectedTime) return
+
+    setIsSubmitting(true)
+    try {
+      const response = await fetch('/api/book', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          date: selectedDate.toISOString(),
+          time: selectedTime,
+          peopleCount,
+          contactMethod,
+          contactValue,
+        }),
+      })
+
+      if (response.ok) {
+        setStep("success")
+        setTimeout(() => {
+          setStep("people")
+          setPeopleCount(1)
+          setSelectedDate(undefined)
+          setSelectedTime(null)
+          setContactMethod(null)
+          setContactValue("")
+          setBusySlots([])
+        }, 4000)
+      } else {
+        alert('Failed to book appointment. Please try again.')
+      }
+    } catch (error) {
+      console.error('Booking error:', error)
+      alert('Failed to book appointment. Please try again.')
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   const isValidContact = () => {
@@ -233,9 +279,8 @@ export function BookingSection() {
     return contactMethod === "email" ? <Mail className="w-6 h-6" /> : <MessageSquare className="w-6 h-6" />
   }
 
-  const getContactLabel = () => {
-    return contactMethod === "email" ? "Email" : "Phone"
-  }
+  // Filter available time slots
+  const availableTimeSlots = timeSlots.filter(slot => !busySlots.includes(slot))
 
   return (
     <section id="booking" className="py-20 md:py-32 bg-card overflow-hidden relative">
@@ -351,9 +396,9 @@ export function BookingSection() {
                     <LargeCalendar
                       selected={selectedDate}
                       onSelect={setSelectedDate}
+                      busyDates={busyDates}
                       currentMonth={currentMonth}
                       onChangeMonth={setCurrentMonth}
-                      disabled={(date) => date < new Date() || date.getDay() === 0}
                     />
                   </div>
 
@@ -368,21 +413,32 @@ export function BookingSection() {
                           </span>
                         </div>
                         
-                        <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-3 gap-3">
-                          {timeSlots.map((time) => (
-                            <button
-                              key={time}
-                              onClick={() => setSelectedTime(time)}
-                              className={`py-4 px-2 rounded-xl border-2 text-base font-medium transition-all duration-300 ${
-                                selectedTime === time
-                                  ? "border-primary bg-primary text-primary-foreground shadow-lg scale-105"
-                                  : "border-border hover:border-primary/40 hover:shadow-sm"
-                              }`}
-                            >
-                              {time}
-                            </button>
-                          ))}
-                        </div>
+                        {isLoadingAvailability ? (
+                          <div className="flex items-center justify-center h-32">
+                            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                          </div>
+                        ) : availableTimeSlots.length > 0 ? (
+                          <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-3 gap-3">
+                            {availableTimeSlots.map((time) => (
+                              <button
+                                key={time}
+                                onClick={() => setSelectedTime(time)}
+                                className={`py-4 px-2 rounded-xl border-2 text-base font-medium transition-all duration-300 ${
+                                  selectedTime === time
+                                    ? "border-primary bg-primary text-primary-foreground shadow-lg scale-105"
+                                    : "border-border hover:border-primary/40 hover:shadow-sm"
+                                }`}
+                              >
+                                {time}
+                              </button>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="flex flex-col items-center justify-center h-32 text-muted-foreground">
+                            <Clock className="w-8 h-8 mb-2 opacity-50" />
+                            <p>No available slots for this day</p>
+                          </div>
+                        )}
 
                         <div className="flex items-center gap-2 text-sm text-muted-foreground pt-4">
                           <Clock className="w-4 h-4" />
@@ -405,7 +461,7 @@ export function BookingSection() {
                   </Button>
                   <Button
                     onClick={() => handleStepChange("contact")}
-                    disabled={!selectedDate || !selectedTime}
+                    disabled={!selectedDate || !selectedTime || isLoadingAvailability}
                     className="px-8 py-5 text-base"
                   >
                     Continue
@@ -570,9 +626,22 @@ export function BookingSection() {
                     <ChevronLeft className="w-5 h-5 mr-2" />
                     Back
                   </Button>
-                  <Button onClick={handleConfirm} className="px-10 py-5 text-base bg-primary hover:bg-accent">
-                    Confirm Booking
-                    <Check className="w-5 h-5 ml-2" />
+                  <Button 
+                    onClick={handleConfirm} 
+                    disabled={isSubmitting}
+                    className="px-10 py-5 text-base bg-primary hover:bg-accent"
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                        Booking...
+                      </>
+                    ) : (
+                      <>
+                        Confirm Booking
+                        <Check className="w-5 h-5 ml-2" />
+                      </>
+                    )}
                   </Button>
                 </div>
               </div>
@@ -593,7 +662,7 @@ export function BookingSection() {
                 </p>
                 <div className="inline-flex items-center gap-3 text-base text-muted-foreground">
                   <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse" />
-                  Syncing with Google Sheets...
+                  Synced with Google Calendar
                 </div>
               </div>
             )}

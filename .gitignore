@@ -10,6 +10,10 @@ next.user-config.*
 # Environment variables
 .env*.local
 
+# Google credentials (local development only)
+google-credentials.json
+google-credentials.json
+
 # Common ignores
 node_modules
 .next/
